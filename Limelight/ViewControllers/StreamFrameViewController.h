@@ -20,6 +20,8 @@
 @interface StreamFrameViewController : UIViewController <ConnectionCallbacks, ControllerSupportDelegate, UserInteractionDelegate, UIScrollViewDelegate>
 #endif
 @property (nonatomic) StreamConfiguration* streamConfig;
+/// DEBUG harness: no connection, test-pattern video and full on-screen controls.
+@property (nonatomic) BOOL previewMode;
 
 -(void)updatePreferredDisplayMode:(BOOL)streamActive;
 

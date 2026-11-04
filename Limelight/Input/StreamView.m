@@ -14,6 +14,12 @@
 #import "RelativeTouchHandler.h"
 #import "AbsoluteTouchHandler.h"
 #import "KeyboardInputField.h"
+#import "MLDuoBridge.h"
+#if !TARGET_OS_TV
+#import "MLTouchGamepad.h"
+#endif
+
+@import AVFoundation;
 
 static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
 
@@ -44,13 +50,28 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
     BOOL hasUserInteracted;
     
     NSDictionary<NSString *, NSNumber *> *dictCodes;
+    
+    // Adaptive layout (iPhone Duo folds, rotation, Split View)
+    CGRect _videoRect;
+    NSString* layoutSignature;
+    BOOL splitLayoutEnabled;
+    
+#if !TARGET_OS_TV
+    // nxnative-style touch gamepad (replaces Moonlight's on-screen controls)
+    MLTouchGamepad* touchGamepad;
+    __weak ControllerSupport* gamepadControllerSupport;
+    BOOL gamepadSwapABXY;
+#endif
 }
+
+@synthesize videoRect = _videoRect;
 
 - (void) setupStreamView:(ControllerSupport*)controllerSupport
      interactionDelegate:(id<UserInteractionDelegate>)interactionDelegate
                   config:(StreamConfiguration*)streamConfig {
     self->interactionDelegate = interactionDelegate;
     self->streamAspectRatio = (float)streamConfig.width / (float)streamConfig.height;
+    self->splitLayoutEnabled = [MLSettings current].splitLayout;
     
     TemporarySettings* settings = [[[DataManager alloc] init] getSettings];
     
@@ -75,17 +96,17 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
     }
     
     onScreenControls = [[OnScreenControls alloc] initWithView:self controllerSup:controllerSupport streamConfig:streamConfig];
+    // The nxnative touch gamepad replaces the classic on-screen controls, which stay off.
+    [onScreenControls setLevel:OnScreenControlsLevelOff];
+    gamepadControllerSupport = controllerSupport;
+    gamepadSwapABXY = streamConfig.swapABXYButtons;
     OnScreenControlsLevel level = (OnScreenControlsLevel)[settings.onscreenControls integerValue];
     if (settings.absoluteTouchMode) {
         Log(LOG_I, @"On-screen controls disabled in absolute touch mode");
-        [onScreenControls setLevel:OnScreenControlsLevelOff];
     }
-    else if (level == OnScreenControlsLevelAuto) {
-        [controllerSupport initAutoOnScreenControlMode:onScreenControls];
-    }
-    else {
-        Log(LOG_I, @"Setting manual on-screen controls level: %d", (int)level);
-        [onScreenControls setLevel:level];
+    else if (level != OnScreenControlsLevelOff) {
+        Log(LOG_I, @"Touch gamepad, on-screen controls setting %d", (int)level);
+        [self installTouchGamepadWithLevel:level];
     }
     
     // It would be nice to just use GCMouse on iOS 14+ and the older API on iOS 13
@@ -164,10 +185,178 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
 - (void) showOnScreenControls {
 #if !TARGET_OS_TV
     [onScreenControls show];
+    touchGamepad.active = YES;
 #endif
 }
 
+#if !TARGET_OS_TV
+- (void) installTouchGamepadWithLevel:(OnScreenControlsLevel)level {
+    if (touchGamepad != nil || gamepadControllerSupport == nil) {
+        return;
+    }
+    touchGamepad = [[MLTouchGamepad alloc] initWithControllerSupport:gamepadControllerSupport
+                                                            swapABXY:gamepadSwapABXY
+                                                       settingsLevel:level];
+    touchGamepad.frame = self.bounds;
+    [self addSubview:touchGamepad];
+    [self setNeedsLayout];
+}
+#endif
+
+#if DEBUG
+- (void)debugRunPadProbe {
+#if !TARGET_OS_TV
+    if (touchGamepad == nil) {
+        [MLDuoBridge debugAppend:@"pad probe: no touch gamepad installed" toFile:@"stream-status.txt"];
+        return;
+    }
+    [touchGamepad debugPressSequence];
+#endif
+}
+#endif
+
+- (void) setOnScreenControlsLevel:(OnScreenControlsLevel)level {
+#if !TARGET_OS_TV
+    // Used by the preview harness: replace whatever the settings installed.
+    [touchGamepad removeFromSuperview];
+    touchGamepad = nil;
+    if (level != OnScreenControlsLevelOff) {
+        [self installTouchGamepadWithLevel:level];
+    }
+    [self setNeedsLayout];
+#endif
+}
+
+#pragma mark - Adaptive layout
+
+- (void) layoutSubviews {
+    [super layoutSubviews];
+    [self updateStreamLayout];
+}
+
+- (void) safeAreaInsetsDidChange {
+    [super safeAreaInsetsDidChange];
+    [self setNeedsLayout];
+}
+
+// Recomputes where the video and the on-screen controls go for the current size,
+// fold state and orientation. Cheap when nothing changed.
+- (void) updateStreamLayout {
+    CGRect bounds = self.bounds;
+    if (CGRectIsEmpty(bounds) || streamAspectRatio <= 0) {
+        return;
+    }
+    
+    NSArray<NSValue*>* divisions = [MLDuoBridge activeDivisionRectsInView:self];
+    NSArray<NSValue*>* occlusions = [MLDuoBridge activeOcclusionRectsInView:self];
+    BOOL oscVisible = NO;
+#if !TARGET_OS_TV
+    oscVisible = touchGamepad != nil && !touchGamepad.hidden && touchGamepad.wantsArea;
+#endif
+    UIEdgeInsets safe = self.safeAreaInsets;
+    
+    CGRect videoArea = bounds;
+    CGRect controlArea = bounds;
+    BOOL split = NO;
+    
+    // Tabletop / laptop pose: the hinge runs across the display.
+    CGRect hinge = CGRectNull;
+    for (NSValue* value in divisions) {
+        CGRect r = value.CGRectValue;
+        if (r.size.width >= r.size.height && r.size.width >= bounds.size.width * 0.5) {
+            hinge = r;
+            break;
+        }
+    }
+    
+    if (splitLayoutEnabled && !CGRectIsNull(hinge)) {
+        // Video on the upright half, controls on the half lying flat.
+        videoArea = CGRectMake(0, safe.top, bounds.size.width, MAX(0, CGRectGetMinY(hinge) - safe.top));
+        controlArea = CGRectMake(0, CGRectGetMaxY(hinge), bounds.size.width,
+                                 MAX(0, CGRectGetMaxY(bounds) - safe.bottom - CGRectGetMaxY(hinge)));
+        split = YES;
+    }
+    else if (splitLayoutEnabled && oscVisible && bounds.size.height > bounds.size.width) {
+        // Portrait: video at the top, controls in the space under it.
+        CGFloat available = bounds.size.height - safe.top - safe.bottom;
+        CGFloat videoHeight = MIN(bounds.size.width / streamAspectRatio, available * 0.6);
+        videoArea = CGRectMake(0, safe.top, bounds.size.width, videoHeight);
+        controlArea = CGRectMake(0, CGRectGetMaxY(videoArea), bounds.size.width,
+                                 MAX(0, CGRectGetMaxY(bounds) - safe.bottom - CGRectGetMaxY(videoArea)));
+        split = YES;
+    }
+    
+    _videoRect = AVMakeRectWithAspectRatioInsideRect(CGSizeMake(streamAspectRatio, 1), videoArea);
+    
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    for (CALayer* layer in self.layer.sublayers) {
+        BOOL isPreview = [layer.name isEqualToString:@"MLVideoPreview"];
+        if ([layer isKindOfClass:[AVSampleBufferDisplayLayer class]] || isPreview) {
+            layer.bounds = CGRectMake(0, 0, _videoRect.size.width, _videoRect.size.height);
+            layer.position = CGPointMake(CGRectGetMidX(_videoRect), CGRectGetMidY(_videoRect));
+            if (isPreview) {
+                for (CALayer* sub in layer.sublayers) {
+                    CGFloat h = 64;
+                    sub.frame = CGRectMake(0, (layer.bounds.size.height - h) / 2, layer.bounds.size.width, h);
+                }
+            }
+        }
+    }
+    [CATransaction commit];
+    
+#if !TARGET_OS_TV
+    BOOL large = !split &&
+        self.traitCollection.horizontalSizeClass == UIUserInterfaceSizeClassRegular &&
+        self.traitCollection.verticalSizeClass == UIUserInterfaceSizeClassRegular;
+    NSMutableArray<NSValue*>* avoid = [NSMutableArray arrayWithArray:divisions];
+    [avoid addObjectsFromArray:occlusions];
+    if (touchGamepad != nil) {
+        touchGamepad.frame = split ? controlArea : bounds;
+        touchGamepad.dedicatedArea = split;
+        NSMutableArray<NSValue*>* local = [NSMutableArray arrayWithCapacity:avoid.count];
+        for (NSValue* value in avoid) {
+            [local addObject:[NSValue valueWithCGRect:[self convertRect:value.CGRectValue toView:touchGamepad]]];
+        }
+        touchGamepad.avoidRects = local;
+    }
+    NSString* signature = [NSString stringWithFormat:@"%@|%d|%d|%@",
+                           NSStringFromCGRect(controlArea), split, large, avoid];
+    if (![signature isEqualToString:layoutSignature]) {
+        layoutSignature = signature;
+        [onScreenControls updateLayoutWithControlArea:controlArea largeLayout:large avoidRects:avoid];
+    }
+#endif
+}
+
+- (void) installPreviewVideoLayer {
+    CAGradientLayer* preview = [CAGradientLayer layer];
+    preview.name = @"MLVideoPreview";
+    preview.colors = @[(id)[UIColor colorWithRed:0.10 green:0.16 blue:0.38 alpha:1].CGColor,
+                       (id)[UIColor colorWithRed:0.42 green:0.12 blue:0.46 alpha:1].CGColor];
+    preview.startPoint = CGPointMake(0, 0);
+    preview.endPoint = CGPointMake(1, 1);
+    preview.borderColor = [UIColor colorWithWhite:1 alpha:0.6].CGColor;
+    preview.borderWidth = 2;
+    
+    CATextLayer* label = [CATextLayer layer];
+    label.string = @"Stream preview";
+    label.fontSize = 20;
+    label.alignmentMode = kCAAlignmentCenter;
+    label.foregroundColor = [UIColor colorWithWhite:1 alpha:0.85].CGColor;
+    label.contentsScale = self.traitCollection.displayScale > 0 ? self.traitCollection.displayScale : 3;
+    [preview addSublayer:label];
+    
+    [self.layer insertSublayer:preview atIndex:0];
+    [self setNeedsLayout];
+}
+
 - (OnScreenControlsLevel) getCurrentOscState {
+#if !TARGET_OS_TV
+    if (touchGamepad != nil) {
+        return (!touchGamepad.hidden && touchGamepad.wantsArea) ? OnScreenControlsLevelFull : OnScreenControlsLevelOff;
+    }
+#endif
     if (onScreenControls == nil) {
         return OnScreenControlsLevelOff;
     }
@@ -177,6 +366,9 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
 }
 
 - (CGSize) getVideoAreaSize {
+    if (!CGRectIsEmpty(_videoRect)) {
+        return _videoRect.size;
+    }
     if (self.bounds.size.width > self.bounds.size.height * streamAspectRatio) {
         return CGSizeMake(self.bounds.size.height * streamAspectRatio, self.bounds.size.height);
     } else {
@@ -210,8 +402,9 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
     
     // This logic mimics what iOS does with AVLayerVideoGravityResizeAspect
     CGSize videoSize = [self getVideoAreaSize];
-    CGPoint videoOrigin = CGPointMake(self.bounds.size.width / 2 - videoSize.width / 2,
-                                      self.bounds.size.height / 2 - videoSize.height / 2);
+    CGPoint videoOrigin = !CGRectIsEmpty(_videoRect) ? _videoRect.origin :
+        CGPointMake(self.bounds.size.width / 2 - videoSize.width / 2,
+                    self.bounds.size.height / 2 - videoSize.height / 2);
     
     // Confine the cursor to the video region. We don't just discard events outside
     // the region because we won't always get one exactly when the mouse leaves the region.
@@ -674,6 +867,10 @@ static const double X1_MOUSE_SPEED_DIVISOR = 2.5;
     }
     videoOrigin = CGPointMake(self.bounds.size.width / 2 - videoSize.width / 2,
                               self.bounds.size.height / 2 - videoSize.height / 2);
+    if (!CGRectIsEmpty(_videoRect)) {
+        videoSize = _videoRect.size;
+        videoOrigin = _videoRect.origin;
+    }
     
     // Move the cursor on the host if no buttons are pressed.
     // Motion with buttons pressed in handled in touchesMoved:

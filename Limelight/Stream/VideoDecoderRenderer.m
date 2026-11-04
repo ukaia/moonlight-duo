@@ -50,13 +50,22 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     // touch location to be wrong in StreamView if the aspect ratio of the host
     // desktop doesn't match the aspect ratio of the stream.
     CGSize videoSize;
-    if (_view.bounds.size.width > _view.bounds.size.height * _streamAspectRatio) {
-        videoSize = CGSizeMake(_view.bounds.size.height * _streamAspectRatio, _view.bounds.size.height);
-    } else {
-        videoSize = CGSizeMake(_view.bounds.size.width, _view.bounds.size.width / _streamAspectRatio);
+    CGRect videoRect = _view.videoRect;
+    if (!CGRectIsEmpty(videoRect)) {
+        // StreamView decides where the video goes (above the fold, top of portrait, ...)
+        // and keeps this layer in place when the view resizes.
+        displayLayer.position = CGPointMake(CGRectGetMidX(videoRect), CGRectGetMidY(videoRect));
+        displayLayer.bounds = CGRectMake(0, 0, videoRect.size.width, videoRect.size.height);
     }
-    displayLayer.position = CGPointMake(CGRectGetMidX(_view.bounds), CGRectGetMidY(_view.bounds));
-    displayLayer.bounds = CGRectMake(0, 0, videoSize.width, videoSize.height);
+    else {
+        if (_view.bounds.size.width > _view.bounds.size.height * _streamAspectRatio) {
+            videoSize = CGSizeMake(_view.bounds.size.height * _streamAspectRatio, _view.bounds.size.height);
+        } else {
+            videoSize = CGSizeMake(_view.bounds.size.width, _view.bounds.size.width / _streamAspectRatio);
+        }
+        displayLayer.position = CGPointMake(CGRectGetMidX(_view.bounds), CGRectGetMidY(_view.bounds));
+        displayLayer.bounds = CGRectMake(0, 0, videoSize.width, videoSize.height);
+    }
     displayLayer.videoGravity = AVLayerVideoGravityResize;
 
     // Hide the layer until we get an IDR frame. This ensures we
@@ -68,7 +77,7 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
         [_view.layer replaceSublayer:oldLayer with:displayLayer];
     }
     else {
-        [_view.layer addSublayer:displayLayer];
+        [_view.layer insertSublayer:displayLayer atIndex:0];   // under the touch gamepad
     }
     
     if (formatDesc != nil) {

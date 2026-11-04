@@ -69,6 +69,7 @@
     Controller *_controller;
     NSMutableArray* _deadTouches;
     BOOL _swapABXY;
+    NSArray<NSValue*>* _avoidRects;
 }
 
 static const float EDGE_WIDTH = .05;
@@ -120,7 +121,9 @@ static float L3_Y;
     _deadTouches = [[NSMutableArray alloc] init];
     _swapABXY = streamConfig.swapABXYButtons;
     
-    _iPad = ([UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad);
+    // Size classes, not the device idiom: the iPhone Duo inner display is regular/regular too.
+    _iPad = (_view.traitCollection.horizontalSizeClass == UIUserInterfaceSizeClassRegular &&
+             _view.traitCollection.verticalSizeClass == UIUserInterfaceSizeClassRegular);
     _controlArea = CGRectMake(0, 0, _view.frame.size.width, _view.frame.size.height);
     if (_iPad)
     {
@@ -164,8 +167,92 @@ static float L3_Y;
     [self updateControls];
 }
 
+- (void) updateLayoutWithControlArea:(CGRect)area largeLayout:(BOOL)largeLayout avoidRects:(NSArray<NSValue*>*)avoidRects {
+    _iPad = largeLayout;
+    _avoidRects = [avoidRects copy];
+    _controlArea = area;
+    if (_iPad) {
+        // Cut down the control area on a large display so the controls are more reachable
+        _controlArea.size.height = area.size.height / 2.0;
+        _controlArea.origin.y = CGRectGetMaxY(area) - _controlArea.size.height;
+    }
+    else {
+        CGFloat inset = area.size.width * EDGE_WIDTH;
+        _controlArea.origin.x = area.origin.x + inset;
+        _controlArea.size.width = area.size.width - inset * 2;
+    }
+    
+    if (_visible) {
+        [self updateControls];
+    }
+}
+
+// Moves one control (centre cx, cy and half-size) out of any reserved region it overlaps:
+// sideways for a hinge running down the display, up or down for one running across it.
+static void MLNudgeControl(float* cx, float* cy, CGSize half, NSArray<NSValue*>* rects, CGRect bounds) {
+    for (NSValue* value in rects) {
+        CGRect r = value.CGRectValue;
+        CGRect c = CGRectMake(*cx - half.width, *cy - half.height, half.width * 2, half.height * 2);
+        if (!CGRectIntersectsRect(c, r)) {
+            continue;
+        }
+        if (r.size.height >= r.size.width) {
+            CGFloat toLeft = CGRectGetMinX(r) - CGRectGetMaxX(c);
+            CGFloat toRight = CGRectGetMaxX(r) - CGRectGetMinX(c);
+            CGFloat dx = fabs(toLeft) <= fabs(toRight) ? toLeft : toRight;
+            if (*cx + dx - half.width < CGRectGetMinX(bounds) || *cx + dx + half.width > CGRectGetMaxX(bounds)) {
+                dx = (dx == toLeft) ? toRight : toLeft;
+            }
+            *cx += dx;
+        }
+        else {
+            CGFloat toTop = CGRectGetMinY(r) - CGRectGetMaxY(c);
+            CGFloat toBottom = CGRectGetMaxY(r) - CGRectGetMinY(c);
+            CGFloat dy = fabs(toTop) <= fabs(toBottom) ? toTop : toBottom;
+            if (*cy + dy - half.height < CGRectGetMinY(bounds) || *cy + dy + half.height > CGRectGetMaxY(bounds)) {
+                dy = (dy == toTop) ? toBottom : toTop;
+            }
+            *cy += dy;
+        }
+    }
+}
+
+static CGSize MLHalfSize(NSString* imageName, CGFloat extra) {
+    UIImage* image = [UIImage imageNamed:imageName];
+    return CGSizeMake(image.size.width / 2 + extra, image.size.height / 2 + extra);
+}
+
+- (void) avoidReservedRegions {
+    if (_avoidRects.count == 0) {
+        return;
+    }
+    CGRect bounds = _view.bounds;
+    CGSize upHalf = MLHalfSize(@"UpButton", 0);
+    CGSize dpad = CGSizeMake(D_PAD_DIST + upHalf.width * 2, D_PAD_DIST + upHalf.height * 2);
+    CGSize aHalf = MLHalfSize(@"AButton", 0);
+    CGSize abxy = CGSizeMake(BUTTON_DIST + aHalf.width * 2, BUTTON_DIST + aHalf.height * 2);
+    CGSize stick = MLHalfSize(@"StickOuter", 0);
+    
+    MLNudgeControl(&D_PAD_CENTER_X, &D_PAD_CENTER_Y, dpad, _avoidRects, bounds);
+    MLNudgeControl(&BUTTON_CENTER_X, &BUTTON_CENTER_Y, abxy, _avoidRects, bounds);
+    MLNudgeControl(&LS_CENTER_X, &LS_CENTER_Y, stick, _avoidRects, bounds);
+    MLNudgeControl(&RS_CENTER_X, &RS_CENTER_Y, stick, _avoidRects, bounds);
+    MLNudgeControl(&START_X, &START_Y, MLHalfSize(@"StartButton", 4), _avoidRects, bounds);
+    MLNudgeControl(&SELECT_X, &SELECT_Y, MLHalfSize(@"SelectButton", 4), _avoidRects, bounds);
+    MLNudgeControl(&L1_X, &L1_Y, MLHalfSize(@"L1", 4), _avoidRects, bounds);
+    MLNudgeControl(&R1_X, &R1_Y, MLHalfSize(@"R1", 4), _avoidRects, bounds);
+    MLNudgeControl(&L2_X, &L2_Y, MLHalfSize(@"L2", 4), _avoidRects, bounds);
+    MLNudgeControl(&R2_X, &R2_Y, MLHalfSize(@"R2", 4), _avoidRects, bounds);
+    MLNudgeControl(&L3_X, &L3_Y, MLHalfSize(@"L3", 4), _avoidRects, bounds);
+    MLNudgeControl(&R3_X, &R3_Y, MLHalfSize(@"R3", 4), _avoidRects, bounds);
+}
+
 - (void) setLevel:(OnScreenControlsLevel)level {
     _level = level;
+    
+    // The stream view gives the controls their own area in portrait and tabletop,
+    // so it needs to lay out again when they appear or disappear.
+    [_view setNeedsLayout];
     
     // Only update controls if we're showing, otherwise
     // show will do it for us.
@@ -192,6 +279,7 @@ static float L3_Y;
             // GCGamepad is missing triggers, both analog sticks,
             // and the select button
             [self setupGamepadControls];
+            [self avoidReservedRegions];
             
             [self hideButtons];
             [self hideBumpers];
@@ -203,6 +291,7 @@ static float L3_Y;
         case OnScreenControlsLevelAutoGCExtendedGamepad:
             // GCExtendedGamepad is missing R3, L3, and select
             [self setupExtendedGamepadControls];
+            [self avoidReservedRegions];
             
             [self hideButtons];
             [self hideBumpers];
@@ -215,6 +304,7 @@ static float L3_Y;
             // This variant of GCExtendedGamepad has L3 and R3 but
             // is still missing Select
             [self setupExtendedGamepadControls];
+            [self avoidReservedRegions];
             
             [self hideButtons];
             [self hideBumpers];
@@ -225,6 +315,7 @@ static float L3_Y;
             break;
         case OnScreenControlsLevelSimple:
             [self setupSimpleControls];
+            [self avoidReservedRegions];
             
             [self hideTriggers];
             [self hideL3R3];
@@ -235,6 +326,7 @@ static float L3_Y;
             break;
         case OnScreenControlsLevelFull:
             [self setupComplexControls];
+            [self avoidReservedRegions];
             
             [self drawButtons];
             [self drawStartSelect];

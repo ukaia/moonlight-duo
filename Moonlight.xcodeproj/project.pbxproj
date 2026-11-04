@@ -7,6 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		029D3EBBEEE6205F1F4C1D2A /* Harness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76C9200BD92EF716E6670180 /* Harness.swift */; };
+		C45232E7A753461C95DB1284 /* MLTouchGamepad.m in Sources */ = {isa = PBXBuildFile; fileRef = C0CD6261C9452C9E7CDD77FA /* MLTouchGamepad.m */; };
+		8F3FE70201E5E039DBBBF685 /* SettingsSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAB98070BAF7373D5A3C849D /* SettingsSelfTest.swift */; };
+		06A5AAC660FCD46E3B0C4E58 /* AppGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E303B09E02EFE9C246C2EF19 /* AppGridView.swift */; };
+		0B7FC5EEDC7D57578CC8F468 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD127503CA5DC75DD28A0D42 /* Components.swift */; };
+		2B341D319BE2E02141D755D6 /* DemoData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95E75F17DFA430ABC4501A17 /* DemoData.swift */; };
+		39AC24CE3FE502043ADDC0BE /* MLDuoBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = 36C422EC69C409944D2AD41F /* MLDuoBridge.m */; };
+		2ECB8A3DA4A184ADEF53FED2 /* MoonlightModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C9B765BE6DFFB609DCCEDC /* MoonlightModel.swift */; };
+		40E44E9C23338D0F995D9D09 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D25364143DFA53661DD457C0 /* RootView.swift */; };
+		E3F483ADBC6B325CA03D1842 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78346B7A0D6AB554C62FAF7E /* SceneDelegate.swift */; };
+		EDBEAE5DB97295FAC25289E3 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3910571CAF3708E9FA341B96 /* SettingsView.swift */; };
 		693B3A9B218638CD00982F7B /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 693B3A9A218638CD00982F7B /* Settings.bundle */; };
 		98181BE92791277400E43572 /* libSDL2.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 98181BE82791275D00E43572 /* libSDL2.a */; };
 		98181BEB2791278F00E43572 /* libSDL2.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 98181BEA2791278300E43572 /* libSDL2.a */; };
@@ -170,6 +181,19 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		76C9200BD92EF716E6670180 /* Harness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Harness.swift; sourceTree = "<group>"; };
+		09D7FF6682000C410B6082A5 /* MLTouchGamepad.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MLTouchGamepad.h; sourceTree = "<group>"; };
+		C0CD6261C9452C9E7CDD77FA /* MLTouchGamepad.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MLTouchGamepad.m; sourceTree = "<group>"; };
+		BAB98070BAF7373D5A3C849D /* SettingsSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSelfTest.swift; sourceTree = "<group>"; };
+		E303B09E02EFE9C246C2EF19 /* AppGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGridView.swift; sourceTree = "<group>"; };
+		DD127503CA5DC75DD28A0D42 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
+		95E75F17DFA430ABC4501A17 /* DemoData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoData.swift; sourceTree = "<group>"; };
+		22E5F1657510A770B89BD1A9 /* MLDuoBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MLDuoBridge.h; sourceTree = "<group>"; };
+		36C422EC69C409944D2AD41F /* MLDuoBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MLDuoBridge.m; sourceTree = "<group>"; };
+		F9C9B765BE6DFFB609DCCEDC /* MoonlightModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoonlightModel.swift; sourceTree = "<group>"; };
+		D25364143DFA53661DD457C0 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		78346B7A0D6AB554C62FAF7E /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+		3910571CAF3708E9FA341B96 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		566E9D2B2770B23A00EF7BFE /* Moonlight v1.7.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = "Moonlight v1.7.xcdatamodel"; sourceTree = "<group>"; };
 		693B3A9A218638CD00982F7B /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = Settings.bundle; sourceTree = "<group>"; };
 		9803CCAB254F9EAF00EE185E /* ConnectionCallbacks.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ConnectionCallbacks.h; sourceTree = "<group>"; };
@@ -365,6 +389,26 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		A61306FDB85945931194C3AE /* Modern */ = {
+			isa = PBXGroup;
+			children = (
+				76C9200BD92EF716E6670180 /* Harness.swift */,
+				09D7FF6682000C410B6082A5 /* MLTouchGamepad.h */,
+				C0CD6261C9452C9E7CDD77FA /* MLTouchGamepad.m */,
+				BAB98070BAF7373D5A3C849D /* SettingsSelfTest.swift */,
+				E303B09E02EFE9C246C2EF19 /* AppGridView.swift */,
+				DD127503CA5DC75DD28A0D42 /* Components.swift */,
+				95E75F17DFA430ABC4501A17 /* DemoData.swift */,
+				22E5F1657510A770B89BD1A9 /* MLDuoBridge.h */,
+				36C422EC69C409944D2AD41F /* MLDuoBridge.m */,
+				F9C9B765BE6DFFB609DCCEDC /* MoonlightModel.swift */,
+				D25364143DFA53661DD457C0 /* RootView.swift */,
+				78346B7A0D6AB554C62FAF7E /* SceneDelegate.swift */,
+				3910571CAF3708E9FA341B96 /* SettingsView.swift */,
+			);
+			path = Modern;
+			sourceTree = "<group>";
+		};
 		9896219423D15C2900211983 /* X1Kit */ = {
 			isa = PBXGroup;
 			children = (
@@ -445,6 +489,7 @@
 		FB290CF919B2C406004C83CF /* Moonlight */ = {
 			isa = PBXGroup;
 			children = (
+				A61306FDB85945931194C3AE /* Modern */,
 				D4746EEA1CBC740C006FB401 /* Moonlight-Bridging-Header.h */,
 				FB89460419F646E200339C8A /* Crypto */,
 				FB89460919F646E200339C8A /* Input */,
@@ -885,6 +930,17 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				029D3EBBEEE6205F1F4C1D2A /* Harness.swift in Sources */,
+				C45232E7A753461C95DB1284 /* MLTouchGamepad.m in Sources */,
+				8F3FE70201E5E039DBBBF685 /* SettingsSelfTest.swift in Sources */,
+				06A5AAC660FCD46E3B0C4E58 /* AppGridView.swift in Sources */,
+				0B7FC5EEDC7D57578CC8F468 /* Components.swift in Sources */,
+				2B341D319BE2E02141D755D6 /* DemoData.swift in Sources */,
+				39AC24CE3FE502043ADDC0BE /* MLDuoBridge.m in Sources */,
+				2ECB8A3DA4A184ADEF53FED2 /* MoonlightModel.swift in Sources */,
+				40E44E9C23338D0F995D9D09 /* RootView.swift in Sources */,
+				E3F483ADBC6B325CA03D1842 /* SceneDelegate.swift in Sources */,
+				EDBEAE5DB97295FAC25289E3 /* SettingsView.swift in Sources */,
 				FB290D0719B2C406004C83CF /* Limelight.xcdatamodeld in Sources */,
 				9819CC22254F180F008A7C8E /* AbsoluteTouchHandler.m in Sources */,
 				9819CC14254F107A008A7C8E /* RelativeTouchHandler.m in Sources */,
@@ -1218,7 +1274,7 @@
 				);
 				INFOPLIST_FILE = "Limelight/Limelight-Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
-				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -1236,10 +1292,11 @@
 					"$(PROJECT_DIR)/libs/FFmpeg/lib/iOS-Sim",
 				);
 				MARKETING_VERSION = 9.0.2;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.moonlight-stream.Moonlight";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.moonlight-duo.Moonlight";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
 				SKIP_INSTALL = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OBJC_BRIDGING_HEADER = "Limelight/Input/Moonlight-Bridging-Header.h";
 				SWIFT_OBJC_INTERFACE_HEADER_NAME = "Moonlight-Swift.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -1268,7 +1325,7 @@
 				);
 				INFOPLIST_FILE = "Limelight/Limelight-Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
-				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -1286,7 +1343,7 @@
 					"$(PROJECT_DIR)/libs/FFmpeg/lib/iOS-Sim",
 				);
 				MARKETING_VERSION = 9.0.2;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.moonlight-stream.Moonlight";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.moonlight-duo.Moonlight";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
 				SKIP_INSTALL = NO;

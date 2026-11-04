@@ -12,6 +12,7 @@
 #import "StreamManager.h"
 #import "ControllerSupport.h"
 #import "DataManager.h"
+#import "MLDuoBridge.h"
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -47,6 +48,8 @@
     UIScrollView *_scrollView;
     BOOL _userIsInteracting;
     CGSize _keyboardSize;
+    CGSize _lastLayoutSize;
+    BOOL _streamCleanedUp;
     
 #if !TARGET_OS_TV
     UIScreenEdgePanGestureRecognizer *_exitSwipeRecognizer;
@@ -79,6 +82,7 @@
 {
     [super viewDidLoad];
     
+    self.view.backgroundColor = [UIColor blackColor];
     [self.navigationController setNavigationBarHidden:YES animated:YES];
     
     [UIApplication sharedApplication].idleTimerDisabled = YES;
@@ -151,11 +155,13 @@
     _tipLabel.textAlignment = NSTextAlignmentCenter;
     _tipLabel.center = CGPointMake(self.view.frame.size.width / 2, self.view.frame.size.height * 0.9);
     
-    _streamMan = [[StreamManager alloc] initWithConfig:self.streamConfig
-                                            renderView:_streamView
-                                   connectionCallbacks:self];
-    NSOperationQueue* opQueue = [[NSOperationQueue alloc] init];
-    [opQueue addOperation:_streamMan];
+    if (!self.previewMode) {
+        _streamMan = [[StreamManager alloc] initWithConfig:self.streamConfig
+                                                renderView:_streamView
+                                       connectionCallbacks:self];
+        NSOperationQueue* opQueue = [[NSOperationQueue alloc] init];
+        [opQueue addOperation:_streamMan];
+    }
     
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(applicationWillResignActive:)
@@ -209,6 +215,82 @@
     [self.view addSubview:_stageLabel];
     [self.view addSubview:_spinner];
     [self.view addSubview:_tipLabel];
+    
+    if (self.previewMode) {
+        [_streamView installPreviewVideoLayer];
+        [_streamView setOnScreenControlsLevel:OnScreenControlsLevelFull];
+        _stageLabel.hidden = YES;
+        _tipLabel.hidden = YES;
+        [_spinner stopAnimating];
+        [_streamView showOnScreenControls];
+    }
+}
+
+// The view resizes in place when iPhone Duo folds, unfolds or rotates, so every
+// frame here is derived from the current bounds rather than set once at load.
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    
+    CGRect bounds = self.view.bounds;
+    BOOL sizeChanged = !CGSizeEqualToSize(bounds.size, _lastLayoutSize);
+    _lastLayoutSize = bounds.size;
+    
+    if (_scrollView != nil) {
+        if (sizeChanged) {
+            [_scrollView setZoomScale:1.0 animated:NO];
+        }
+        _scrollView.frame = bounds;
+        if (_scrollView.zoomScale == 1.0) {
+            _streamView.frame = _scrollView.bounds;
+            _scrollView.contentSize = bounds.size;
+        }
+    }
+    else {
+        _streamView.frame = bounds;
+    }
+    
+    _stageLabel.center = CGPointMake(CGRectGetMidX(bounds), CGRectGetMidY(bounds));
+    _spinner.center = CGPointMake(CGRectGetMidX(bounds), CGRectGetMidY(bounds) - _stageLabel.frame.size.height - _spinner.frame.size.height);
+    _tipLabel.center = CGPointMake(CGRectGetMidX(bounds), bounds.size.height * 0.9);
+    
+    if (_overlayView != nil && !_overlayView.hidden) {
+        [_overlayView setBounds:CGRectMake(0, 0, bounds.size.width, _overlayView.bounds.size.height)];
+        [_overlayView sizeToFit];
+        [_overlayView setCenter:CGPointMake(CGRectGetMidX(bounds), _overlayView.frame.size.height / 2)];
+    }
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+#if !TARGET_OS_TV
+    if (@available(iOS 27.1, *)) {
+        [self setNeedsUpdateOfVerticalBarConfiguration];
+    }
+#endif
+}
+
+- (void)viewDidDisappear:(BOOL)animated {
+    [super viewDidDisappear:animated];
+    if (self.isBeingDismissed) {
+        [self cleanupStream];
+    }
+}
+
+- (void)cleanupStream {
+    if (_streamCleanedUp) {
+        return;
+    }
+    _streamCleanedUp = YES;
+    [_controllerSupport cleanup];
+    [UIApplication sharedApplication].idleTimerDisabled = NO;
+    [_streamMan stopStream];
+    if (_inactivityTimer != nil) {
+        [_inactivityTimer invalidate];
+        _inactivityTimer = nil;
+    }
+    [_statsUpdateTimer invalidate];
+    _statsUpdateTimer = nil;
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 - (UIView *)viewForZoomingInScrollView:(UIScrollView *)scrollView {
@@ -218,14 +300,7 @@
 - (void)willMoveToParentViewController:(UIViewController *)parent {
     // Only cleanup when we're being destroyed
     if (parent == nil) {
-        [_controllerSupport cleanup];
-        [UIApplication sharedApplication].idleTimerDisabled = NO;
-        [_streamMan stopStream];
-        if (_inactivityTimer != nil) {
-            [_inactivityTimer invalidate];
-            _inactivityTimer = nil;
-        }
-        [[NSNotificationCenter defaultCenter] removeObserver:self];
+        [self cleanupStream];
     }
 }
 
@@ -312,7 +387,25 @@
     [_statsUpdateTimer invalidate];
     _statsUpdateTimer = nil;
     
-    [self.navigationController popToRootViewControllerAnimated:YES];
+    if (self.presentingViewController != nil) {
+        // Presented full screen by the SwiftUI shell
+        [self cleanupStream];
+        if (!self.isBeingDismissed) {
+            [self.presentingViewController dismissViewControllerAnimated:YES completion:^{
+                [[NSNotificationCenter defaultCenter] postNotificationName:MLStreamDidEndNotification object:nil];
+            }];
+        }
+    }
+    else if (self.navigationController != nil) {
+        [self.navigationController popToRootViewControllerAnimated:YES];
+    }
+    else if (self.parentViewController != nil) {
+        // Embedded as a child (the DEBUG layout harness)
+        [self willMoveToParentViewController:nil];
+        [self.view removeFromSuperview];
+        [self removeFromParentViewController];
+        [[NSNotificationCenter defaultCenter] postNotificationName:MLStreamDidEndNotification object:nil];
+    }
 }
 
 // This will fire if the user opens control center or gets a low battery message
@@ -369,7 +462,27 @@
 
 - (void) connectionStarted {
     Log(LOG_I, @"Connection started");
+#if DEBUG
+    [MLDuoBridge debugAppend:[NSString stringWithFormat:@"connection started: %dx%d@%d %d kbps, gamepad level %d", self.streamConfig.width, self.streamConfig.height, self.streamConfig.frameRate, self.streamConfig.bitRate, (int)[_settings.onscreenControls integerValue]] toFile:@"stream-status.txt"];
+#endif
     dispatch_async(dispatch_get_main_queue(), ^{
+#if DEBUG
+        // -MLStreamProbe YES: drive the touch gamepad through the live session, log the
+        // stream stats, then end the stream.
+        if ([NSUserDefaults.standardUserDefaults boolForKey:@"MLStreamProbe"]) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 8 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                if (self->_streamCleanedUp) { [MLDuoBridge debugAppend:@"pad probe: skipped, stream already ended" toFile:@"stream-status.txt"]; return; }
+                [self->_streamView debugRunPadProbe];
+            });
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 24 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                if (self->_streamCleanedUp) return;
+                NSString *stats = [[self->_streamMan getStatsOverlayText] stringByReplacingOccurrencesOfString:@"\n" withString:@" | "];
+                [MLDuoBridge debugAppend:[NSString stringWithFormat:@"stats: %@", stats ?: @"(none)"] toFile:@"stream-status.txt"];
+                [MLDuoBridge debugAppend:@"probe: ending stream" toFile:@"stream-status.txt"];
+                [self returnToMainFrame];
+            });
+        }
+#endif
         // Leave the spinner spinning until it's obscured by
         // the first frame of video.
         self->_stageLabel.hidden = YES;
@@ -391,6 +504,9 @@
 
 - (void)connectionTerminated:(int)errorCode {
     Log(LOG_I, @"Connection terminated: %d", errorCode);
+#if DEBUG
+    [MLDuoBridge debugAppend:[NSString stringWithFormat:@"connection terminated: %d", errorCode] toFile:@"stream-status.txt"];
+#endif
     
     unsigned int portFlags = LiGetPortFlagsFromTerminationErrorCode(errorCode);
     unsigned int portTestResults = LiTestClientConnectivity(CONN_TEST_SERVER, 443, portFlags);
@@ -486,6 +602,9 @@
 
 - (void) stageFailed:(const char*)stageName withError:(int)errorCode portTestFlags:(int)portTestFlags {
     Log(LOG_I, @"Stage %s failed: %d", stageName, errorCode);
+#if DEBUG
+    [MLDuoBridge debugAppend:[NSString stringWithFormat:@"stage %s failed: %d (port flags 0x%x)", stageName, errorCode, portTestFlags] toFile:@"stream-status.txt"];
+#endif
     
     unsigned int portTestResults = LiTestClientConnectivity(CONN_TEST_SERVER, 443, portTestFlags);
 
@@ -518,6 +637,9 @@
 
 - (void) launchFailed:(NSString*)message {
     Log(LOG_I, @"Launch failed: %@", message);
+#if DEBUG
+    [MLDuoBridge debugAppend:[NSString stringWithFormat:@"launch failed: %@", message] toFile:@"stream-status.txt"];
+#endif
     
     dispatch_async(dispatch_get_main_queue(), ^{
         // Allow the display to go to sleep now
@@ -701,6 +823,20 @@
 
 - (BOOL)shouldAutorotate {
     return YES;
+}
+
+- (BOOL)prefersStatusBarHidden {
+    return YES;
+}
+
+- (UIInterfaceOrientationMask)supportedInterfaceOrientations {
+    // Landscape fills the display; portrait and tabletop stack the video above the controls.
+    return UIInterfaceOrientationMaskAll;
+}
+
+// A full-screen video player is the case Apple names for opting out of the vertical bar.
+- (UIVerticalBarBehavior)preferredVerticalBarBehavior API_AVAILABLE(ios(27.1)) {
+    return UIVerticalBarBehaviorDisabled;
 }
 
 - (BOOL)prefersPointerLocked {

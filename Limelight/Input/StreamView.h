@@ -29,9 +29,22 @@
                   config:(StreamConfiguration*)streamConfig;
 - (void) showOnScreenControls;
 - (OnScreenControlsLevel) getCurrentOscState;
+- (void) setOnScreenControlsLevel:(OnScreenControlsLevel)level;
+
+/// Where the video is drawn, in this view's coordinates. Touch and pointer input
+/// map through this rect. It moves above the fold in tabletop pose and to the top
+/// in portrait so the on-screen controls get their own area.
+@property (nonatomic, readonly) CGRect videoRect;
+
+/// DEBUG harness: a test-pattern layer that stands in for the decoder's layer.
+- (void) installPreviewVideoLayer;
 
 #if !TARGET_OS_TV
 - (void) updateCursorLocation:(CGPoint)location isMouse:(BOOL)isMouse;
+#endif
+
+#if DEBUG
+- (void)debugRunPadProbe;
 #endif
 
 @end

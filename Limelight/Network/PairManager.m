@@ -232,6 +232,13 @@
 }
 
 - (NSString*) generatePIN {
+#if DEBUG
+    // Test hook (-MLPairPIN 1234): a known PIN so a helper can enter it on the host.
+    NSString *fixed = [[NSUserDefaults standardUserDefaults] stringForKey:@"MLPairPIN"];
+    if (fixed.length == 4) {
+        return fixed;
+    }
+#endif
     NSString* PIN = [NSString stringWithFormat:@"%d%d%d%d",
                      arc4random_uniform(10), arc4random_uniform(10),
                      arc4random_uniform(10), arc4random_uniform(10)];
